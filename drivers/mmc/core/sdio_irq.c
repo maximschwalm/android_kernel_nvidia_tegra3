@@ -79,6 +79,7 @@ static int process_sdio_pending_irqs(struct mmc_host *host)
 	return ret;
 }
 
+#define PATCH
 static int sdio_irq_thread(void *_host)
 {
 	struct mmc_host *host = _host;
@@ -97,6 +98,15 @@ static int sdio_irq_thread(void *_host)
 	idle_period = msecs_to_jiffies(10);
 	period = (host->caps & MMC_CAP_SDIO_IRQ) ?
 		MAX_SCHEDULE_TIMEOUT : idle_period;
+
+#ifdef PATCH
+	while (!kthread_should_stop()) {
+		pr_info("[%s]: [%d], wait for someone to reclaim\n", __func__, current->pid);
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule_timeout(HZ);
+		set_current_state(TASK_RUNNING);
+	}
+#endif
 
 	pr_debug("%s: IRQ thread started (poll period = %lu jiffies)\n",
 		 mmc_hostname(host), period);
@@ -201,7 +211,18 @@ static int sdio_card_irq_put(struct mmc_card *card)
 
 	if (!--host->sdio_irqs) {
 		atomic_set(&host->sdio_irq_thread_abort, 1);
+#ifndef PATCH
 		kthread_stop(host->sdio_irq_thread);
+#else
+		if (host->claimed) {
+			pr_info("%s: Host is claimed release host", __func__);
+			mmc_release_host(host);
+			kthread_stop(host->sdio_irq_thread);
+			mmc_claim_host(host);
+		} else {
+			kthread_stop(host->sdio_irq_thread);
+		}
+#endif
 	}
 
 	return 0;

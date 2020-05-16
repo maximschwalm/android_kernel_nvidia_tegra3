@@ -2476,7 +2476,16 @@ again:
 		sdhci_writel(host, intmask & (SDHCI_INT_CARD_INSERT |
 			     SDHCI_INT_CARD_REMOVE), SDHCI_INT_STATUS);
 		intmask &= ~(SDHCI_INT_CARD_INSERT | SDHCI_INT_CARD_REMOVE);
+#ifdef CONFIG_MACH_TRANSFORMER
+		/*
+		 * Bypass redundant sdhci register detection.
+		 * SD init works only when carddetect pin is varied.
+		 */
+		if (strcmp(mmc_hostname(host->mmc), "mmc2"))
+			tasklet_schedule(&host->card_tasklet);
+#else
 		tasklet_schedule(&host->card_tasklet);
+#endif
 	}
 
 	if (intmask & SDHCI_INT_CMD_MASK) {
@@ -2567,6 +2576,7 @@ int sdhci_suspend_host(struct sdhci_host *host)
 	}
 
 	if (mmc->card) {
+#ifndef CONFIG_MACH_TRANSFORMER
 		/*
 		 * If eMMC cards are put in sleep state, Vccq can be disabled
 		 * but Vcc would still be powered on. In resume, we only restore
@@ -2575,6 +2585,7 @@ int sdhci_suspend_host(struct sdhci_host *host)
 		if (mmc_card_can_sleep(mmc) &&
 			!(mmc->caps2 & MMC_CAP2_NO_SLEEP_CMD))
 			mmc->pm_flags = MMC_PM_KEEP_POWER;
+#endif
 
 		ret = mmc_suspend_host(host->mmc);
 	}

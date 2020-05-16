@@ -117,11 +117,19 @@ int blk_execute_rq(struct request_queue *q, struct gendisk *bd_disk,
 	blk_execute_rq_nowait(q, bd_disk, rq, at_head, blk_end_sync_rq);
 
 	/* Prevent hang_check timer from firing at us during very long I/O */
+#ifndef CONFIG_MACH_TRANSFORMER
 	hang_check = sysctl_hung_task_timeout_secs;
 	if (hang_check)
 		while (!wait_for_completion_timeout(&wait, hang_check * (HZ/2)));
 	else
 		wait_for_completion(&wait);
+#else
+	hang_check = 5;
+	while (!wait_for_completion_timeout(&wait, hang_check * HZ)) {
+		printk("%s: wait_for_completion_timeout! Calling blk_run_queue!\n", __func__);
+		blk_run_queue(q);
+	}
+#endif
 
 	if (rq->errors)
 		err = -EIO;

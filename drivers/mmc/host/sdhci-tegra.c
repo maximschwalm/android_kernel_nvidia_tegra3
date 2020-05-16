@@ -44,11 +44,23 @@
 #include <mach/clk.h>
 
 #include "sdhci-pltfm.h"
-#if defined(CONFIG_MACH_GROUPER) || defined(CONFIG_MACH_TRANSFORMER)
+#ifdef CONFIG_MACH_GROUPER
 #include <../gpio-names.h>
 #endif
+
 #ifdef CONFIG_MACH_TRANSFORMER
+#include <../gpio-names.h>
 #include <mach/board-transformer-misc.h>
+
+#define SDHOST_HIGH_VOLT_MIN	3300000
+#define SDHOST_HIGH_VOLT_MAX	3340000
+#define SD_IO_VOLT_MIN			2900000
+#define SD_IO_VOLT_MAX			2940000
+#define SDHOST_VDD_SLOT_REG_MIN	3100000
+#define SDHOST_VDD_SLOT_REG_MAX	3140000
+#else
+#define SDHOST_HIGH_VOLT_MIN	2700000
+#define SDHOST_HIGH_VOLT_MAX	3600000
 #endif
 
 #define SDHCI_VNDR_CLK_CTRL	0x100
@@ -84,8 +96,6 @@
 #define PULLUP_ADJUSTMENT_OFFSET	20
 
 #define SDHOST_1V8_OCR_MASK	0x8
-#define SDHOST_HIGH_VOLT_MIN	2700000
-#define SDHOST_HIGH_VOLT_MAX	3600000
 #define SDHOST_HIGH_VOLT_2V8	2800000
 #define SDHOST_LOW_VOLT_MIN	1800000
 #define SDHOST_LOW_VOLT_MAX	1800000
@@ -101,6 +111,19 @@
 #define TUNING_RETRIES	1
 #define SDMMC_AHB_MAX_FREQ	150000000
 #define SDMMC_EMC_MAX_FREQ	150000000
+
+#if defined(CONFIG_MACH_GROUPER) || defined(CONFIG_MACH_TRANSFORMER)
+static struct gpio mmc_gpios[] = {
+	{ TEGRA_GPIO_PAA0, GPIOF_OUT_INIT_HIGH, "PAA0" }, /* default to ON */
+	{ TEGRA_GPIO_PAA1, GPIOF_OUT_INIT_HIGH, "PAA1" }, /* default to ON */
+	{ TEGRA_GPIO_PAA2, GPIOF_OUT_INIT_HIGH, "PAA2" }, /* default to ON */
+	{ TEGRA_GPIO_PAA3, GPIOF_OUT_INIT_HIGH, "PAA3" }, /* default to ON */
+	{ TEGRA_GPIO_PAA4, GPIOF_OUT_INIT_HIGH, "PAA4" }, /* default to ON */
+	{ TEGRA_GPIO_PAA5, GPIOF_OUT_INIT_HIGH, "PAA5" }, /* default to ON */
+	{ TEGRA_GPIO_PAA6, GPIOF_OUT_INIT_HIGH, "PAA6" }, /* default to ON */
+	{ TEGRA_GPIO_PAA7, GPIOF_OUT_INIT_HIGH, "PAA7" }, /* default to ON */
+};
+#endif
 
 static unsigned int uhs_max_freq_MHz[] = {
 	[MMC_TIMING_UHS_SDR50] = 100,
@@ -1273,6 +1296,15 @@ static int tegra_sdhci_signal_voltage_switch(struct sdhci_host *sdhci,
 	unsigned int rc = 0;
 	u16 clk, ctrl;
 
+#ifdef CONFIG_MACH_TRANSFORMER
+	if (!strcmp(mmc_hostname(sdhci->mmc), "mmc2")) {
+		min_uV = SD_IO_VOLT_MIN;
+		max_uV = SD_IO_VOLT_MAX;
+	} else {
+		min_uV = SDHOST_HIGH_VOLT_MIN;
+		max_uV = SDHOST_HIGH_VOLT_MAX;
+	}
+#endif
 
 	ctrl = sdhci_readw(sdhci, SDHCI_HOST_CONTROL2);
 	if (signal_voltage == MMC_SIGNAL_VOLTAGE_180) {
@@ -1285,8 +1317,10 @@ static int tegra_sdhci_signal_voltage_switch(struct sdhci_host *sdhci,
 	}
 
 	/* Check if the slot can support the required voltage */
+#ifndef CONFIG_MACH_TRANSFORMER
 	if (min_uV > tegra_host->vddio_max_uv)
 		return 0;
+#endif
 
 	/* Switch OFF the card clock to prevent glitches on the clock line */
 	clk = sdhci_readw(sdhci, SDHCI_CLOCK_CONTROL);
@@ -1303,9 +1337,21 @@ static int tegra_sdhci_signal_voltage_switch(struct sdhci_host *sdhci,
 		if (rc) {
 			dev_err(mmc_dev(sdhci->mmc), "switching to 1.8V"
 			"failed . Switching back to 3.3V\n");
+#ifndef CONFIG_MACH_TRANSFORMER
 			rc = regulator_set_voltage(tegra_host->vdd_io_reg,
 				SDHOST_HIGH_VOLT_MIN,
 				SDHOST_HIGH_VOLT_MAX);
+#else
+			if (!strcmp(mmc_hostname(sdhci->mmc), "mmc2"))
+				rc = regulator_set_voltage(tegra_host->vdd_io_reg,
+					SD_IO_VOLT_MIN,
+					SD_IO_VOLT_MAX);
+			else
+				rc = regulator_set_voltage(tegra_host->vdd_io_reg,
+					SDHOST_HIGH_VOLT_MIN,
+					SDHOST_HIGH_VOLT_MAX);
+#endif
+
 			if (rc)
 				dev_err(mmc_dev(sdhci->mmc),
 				"switching to 3.3V also failed\n");
@@ -2117,22 +2163,7 @@ static int tegra_sdhci_suspend(struct sdhci_host *sdhci)
 #endif /* CONFIG_MACH_TRANSFORMER */
 	if (!strcmp(mmc_hostname(sdhci->mmc), "mmc0")) {
 		pr_debug("%s: pull up data pin", mmc_hostname(sdhci->mmc));
-		gpio_request(TEGRA_GPIO_PAA0, "PAA0");
-		gpio_request(TEGRA_GPIO_PAA1, "PAA1");
-		gpio_request(TEGRA_GPIO_PAA2, "PAA2");
-		gpio_request(TEGRA_GPIO_PAA3, "PAA3");
-		gpio_request(TEGRA_GPIO_PAA4, "PAA4");
-		gpio_request(TEGRA_GPIO_PAA5, "PAA5");
-		gpio_request(TEGRA_GPIO_PAA6, "PAA6");
-		gpio_request(TEGRA_GPIO_PAA7, "PAA7");
-		gpio_direction_output(TEGRA_GPIO_PAA0, 1);
-		gpio_direction_output(TEGRA_GPIO_PAA1, 1);
-		gpio_direction_output(TEGRA_GPIO_PAA2, 1);
-		gpio_direction_output(TEGRA_GPIO_PAA3, 1);
-		gpio_direction_output(TEGRA_GPIO_PAA4, 1);
-		gpio_direction_output(TEGRA_GPIO_PAA5, 1);
-		gpio_direction_output(TEGRA_GPIO_PAA6, 1);
-		gpio_direction_output(TEGRA_GPIO_PAA7, 1);
+		gpio_request_array(mmc_gpios, ARRAY_SIZE(mmc_gpios));
 	}
 #endif
 
@@ -2189,14 +2220,7 @@ static int tegra_sdhci_resume(struct sdhci_host *sdhci)
 #endif /* CONFIG_MACH_TRANSFORMER */
 	if (!strcmp(mmc_hostname(sdhci->mmc), "mmc0")) {
 		pr_debug("%s: disable data pin", mmc_hostname(sdhci->mmc));
-		gpio_free(TEGRA_GPIO_PAA0);
-		gpio_free(TEGRA_GPIO_PAA1);
-		gpio_free(TEGRA_GPIO_PAA2);
-		gpio_free(TEGRA_GPIO_PAA3);
-		gpio_free(TEGRA_GPIO_PAA4);
-		gpio_free(TEGRA_GPIO_PAA5);
-		gpio_free(TEGRA_GPIO_PAA6);
-		gpio_free(TEGRA_GPIO_PAA7);
+		gpio_free_array(mmc_gpios, ARRAY_SIZE(mmc_gpios));
 	}
 #endif
 
@@ -2614,8 +2638,13 @@ static int __devinit sdhci_tegra_probe(struct platform_device *pdev)
 		 * Set the minV and maxV to default
 		 * voltage range of 2.7V - 3.6V
 		 */
+#ifdef CONFIG_MACH_TRANSFORMER
+		tegra_host->vddio_min_uv = SD_IO_VOLT_MIN;
+		tegra_host->vddio_max_uv = SD_IO_VOLT_MAX;
+#else
 		tegra_host->vddio_min_uv = SDHOST_HIGH_VOLT_MIN;
 		tegra_host->vddio_max_uv = SDHOST_HIGH_VOLT_MAX;
+#endif
 	}
 
 	tegra_host->vdd_io_reg = regulator_get(mmc_dev(host->mmc),
@@ -2645,6 +2674,17 @@ static int __devinit sdhci_tegra_probe(struct platform_device *pdev)
 			"vddio_sd_slot", PTR_ERR(tegra_host->vdd_slot_reg));
 		tegra_host->vdd_slot_reg = NULL;
 	}
+#ifdef CONFIG_MACH_TRANSFORMER
+	else {
+		rc = regulator_set_voltage(tegra_host->vdd_slot_reg,
+			SDHOST_VDD_SLOT_REG_MIN,
+			SDHOST_VDD_SLOT_REG_MAX);
+		if (rc) {
+			dev_err(mmc_dev(host->mmc), "%s regulator_set_voltage failed: %d",
+				"vddio_sd_slot", rc);
+		}
+	}
+#endif
 
 	if (tegra_host->card_present) {
 		if (tegra_host->vdd_slot_reg)
@@ -2653,6 +2693,22 @@ static int __devinit sdhci_tegra_probe(struct platform_device *pdev)
 			regulator_enable(tegra_host->vdd_io_reg);
 		tegra_host->is_rail_enabled = 1;
 	}
+#ifdef CONFIG_MACH_TRANSFORMER
+	else if (!strcmp(mmc_hostname(host->mmc), "mmc0")) {
+		tegra_host->vdd_io_reg = regulator_get(mmc_dev(host->mmc), "vddio_sdmmc");
+		if (IS_ERR_OR_NULL(tegra_host->vdd_io_reg)) {
+			dev_err(mmc_dev(host->mmc), "%s regulator not found: %ld\n",
+				"vddio_sdmmc", PTR_ERR(tegra_host->vdd_io_reg));
+			tegra_host->vdd_io_reg = NULL;
+		} else {
+			rc = regulator_set_voltage(tegra_host->vdd_io_reg, 2850000, 2890000);
+			if (rc)
+				dev_err(mmc_dev(host->mmc), "%s regulator_set_voltage failed: %d", "vddio_sdmmc", rc);
+			else
+				regulator_enable(tegra_host->vdd_io_reg);
+		}
+	}
+#endif
 
 	pm_runtime_enable(&pdev->dev);
 	pltfm_host->clk = clk_get(mmc_dev(host->mmc), NULL);
