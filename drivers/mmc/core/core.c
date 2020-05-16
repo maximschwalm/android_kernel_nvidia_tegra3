@@ -2242,7 +2242,7 @@ void mmc_rescan(struct work_struct *work)
 	static const unsigned freqs[] = { 400000, 300000, 200000, 100000 };
 	struct mmc_host *host =
 		container_of(work, struct mmc_host, detect.work);
-	int i;
+	int i, ret = 0;
 	bool extend_wakelock = false;
 
 	if (host->rescan_disable)
@@ -2256,7 +2256,7 @@ void mmc_rescan(struct work_struct *work)
 	 */
 	if (host->bus_ops && host->bus_ops->detect && !host->bus_dead
 	    && !(host->caps & MMC_CAP_NONREMOVABLE))
-		host->bus_ops->detect(host);
+		ret = host->bus_ops->detect(host);
 
 	host->detect_change = 0;
 
@@ -2288,6 +2288,9 @@ void mmc_rescan(struct work_struct *work)
 	if (host->ops->get_cd && host->ops->get_cd(host) == 0)
 		goto out;
 
+	if (!strcmp(mmc_hostname(host), "mmc2") && ret)
+		goto out;
+
 	mmc_claim_host(host);
 	for (i = 0; i < ARRAY_SIZE(freqs); i++) {
 		if (!mmc_rescan_try_freq(host, max(freqs[i], host->f_min))) {
@@ -2308,6 +2311,12 @@ void mmc_rescan(struct work_struct *work)
 		wake_lock(&host->detect_wake_lock);
 		mmc_schedule_delayed_work(&host->detect, HZ);
 	}
+
+	/*
+	 * To avoid sd card detect lost.
+	 */
+	if (!strcmp(mmc_hostname(host), "mmc2") && ret)
+		mmc_schedule_delayed_work(&host->detect, HZ);
 }
 
 void mmc_start_host(struct mmc_host *host)
