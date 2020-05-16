@@ -47,6 +47,7 @@
 #include <asm/uaccess.h>
 
 #include "queue.h"
+#include "../core/core.h"
 
 MODULE_ALIAS("mmc:block");
 #ifdef MODULE_PARAM_PREFIX
@@ -1741,6 +1742,29 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 		req = mq_rq->req;
 		type = rq_data_dir(req) == READ ? MMC_BLK_READ : MMC_BLK_WRITE;
 		mmc_queue_bounce_post(mq_rq);
+
+		/*
+		 * SD Workaround: downgrade frequency for seldom specific sdcard
+		 */
+		if (disable_multi == 1) {
+			if (UHS_SDR104_MAX_DTR == card->host->ios.clock) {
+				pr_info("[mmc]: %s: SD freq. down to UHS_SDR50_MAX_DTR", __func__);
+				mmc_set_clock(card->host, UHS_SDR50_MAX_DTR);
+			}
+			else if (UHS_SDR50_MAX_DTR == card->host->ios.clock) {
+				pr_info("[mmc]: %s: SD freq. down to UHS_SDR25_MAX_DTR", __func__);
+				mmc_set_clock(card->host, UHS_SDR25_MAX_DTR);
+			}
+			else if (UHS_SDR25_MAX_DTR == card->host->ios.clock) {
+				pr_info("[mmc]: %s: SD freq. down to UHS_SDR20_5_MAX_DTR", __func__);
+				mmc_set_clock(card->host, UHS_SDR20_5_MAX_DTR);
+			}
+			else if (UHS_SDR20_5_MAX_DTR == card->host->ios.clock) {
+				pr_info("[mmc]: %s: SD freq. down to UHS_SDR12_MAX_DTR", __func__);
+				mmc_set_clock(card->host, UHS_SDR12_MAX_DTR);
+			}
+			disable_multi = 0;
+		}
 
 		switch (status) {
 		case MMC_BLK_SUCCESS:
