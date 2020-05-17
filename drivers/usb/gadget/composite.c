@@ -18,6 +18,7 @@
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/utsname.h>
+#include <linux/wakelock.h>
 
 #include <linux/usb/composite.h>
 #include <asm/unaligned.h>
@@ -65,6 +66,7 @@ module_param(iSerialNumber, charp, 0);
 MODULE_PARM_DESC(iSerialNumber, "SerialNumber string");
 
 static char composite_manufacturer[50];
+static struct wake_lock usb_config_wake_lock;
 
 /*-------------------------------------------------------------------------*/
 /**
@@ -597,6 +599,11 @@ static void reset_config(struct usb_composite_dev *cdev)
 	}
 	cdev->config = NULL;
 	cdev->delayed_status = 0;
+
+#ifdef CONFIG_MACH_TRANSFORMER
+	wake_unlock(&usb_config_wake_lock);
+	pr_info("%s : usb reset config wake unlock\n", __func__);
+#endif
 }
 
 static int set_config(struct usb_composite_dev *cdev,
@@ -607,6 +614,11 @@ static int set_config(struct usb_composite_dev *cdev,
 	int			result = -EINVAL;
 	unsigned		power = gadget_is_otg(gadget) ? 8 : 100;
 	int			tmp;
+
+#ifdef CONFIG_MACH_TRANSFORMER
+	wake_lock(&usb_config_wake_lock);
+	pr_info("%s : usb set config wake lock\n", __func__);
+#endif
 
 	if (number) {
 		list_for_each_entry(c, &cdev->configs, list) {
@@ -1408,6 +1420,10 @@ composite_unbind(struct usb_gadget *gadget)
 	 */
 	WARN_ON(cdev->config);
 
+#ifdef CONFIG_MACH_TRANSFORMER
+	wake_lock_destroy(&usb_config_wake_lock);
+#endif
+
 	while (!list_empty(&cdev->configs)) {
 		struct usb_configuration	*c;
 		c = list_first_entry(&cdev->configs,
@@ -1449,6 +1465,10 @@ static int composite_bind(struct usb_gadget *gadget)
 	cdev = kzalloc(sizeof *cdev, GFP_KERNEL);
 	if (!cdev)
 		return status;
+
+#ifdef CONFIG_MACH_TRANSFORMER
+	wake_lock_init(&usb_config_wake_lock, WAKE_LOCK_SUSPEND, "usb_config_wake_lock");
+#endif
 
 	spin_lock_init(&cdev->lock);
 	cdev->gadget = gadget;

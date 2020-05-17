@@ -809,6 +809,8 @@ static void tegra_otg_resume(struct device *dev)
 			val |= USB_VBUS_INT_EN | USB_VBUS_WAKEUP_EN;
 		tegra->int_status = val;
 #ifdef CONFIG_MACH_TRANSFORMER
+		if (!(tegra->int_status & USB_ID_STATUS))
+			tegra->int_status = (tegra->int_status | USB_ID_INT_STATUS);
 		usb_suspend_tag = false;
 #endif
 		spin_unlock_irqrestore(&tegra->lock, flags);

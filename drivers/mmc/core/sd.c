@@ -19,7 +19,9 @@
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/sd.h>
 
+#ifdef CONFIG_MACH_TRANSFORMER
 #include <mach/board-transformer-misc.h>
+#endif
 
 #include "core.h"
 #include "bus.h"
@@ -998,9 +1000,12 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 		goto free_card;
 
 	/* Initialization sequence for UHS-I cards */
-	if (rocr & SD_ROCR_S18A) &&
-		(project_info == TEGRA3_PROJECT_TF201 ||
-			project_info == TEGRA3_PROJECT_TF700T) {
+	if ((rocr & SD_ROCR_S18A)
+#ifdef CONFIG_MACH_TRANSFORMER
+		 && (tegra3_get_project_id() == TEGRA3_PROJECT_TF201 ||
+			tegra3_get_project_id() == TEGRA3_PROJECT_TF700T)
+#endif
+	) {
 		err = mmc_sd_init_uhs_card(card);
 		if (err)
 			goto free_card;
@@ -1027,11 +1032,13 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 		else if (err)
 			goto free_card;
 
+#ifdef CONFIG_MACH_TRANSFORMER
 		/*
 		 * SD Workaround: do not set high speed mode for seldom specific sdcard
 		 */
 		if (retries == 1)
 			mmc_card_clr_highspeed(card);
+#endif
 
 		/*
 		 * Set bus speed.
@@ -1126,6 +1133,11 @@ static void mmc_sd_detect(struct mmc_host *host)
 		mmc_power_off(host);
 		mmc_release_host(host);
 	}
+
+#ifdef CONFIG_MACH_TRANSFORMER
+	/* We need transfer output to mmc/core but function is void */
+	host->detect_sd = err;
+#endif
 }
 
 /*

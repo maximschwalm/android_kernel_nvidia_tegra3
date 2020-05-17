@@ -144,11 +144,11 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 {
 	struct mmc_command *cmd = mrq->cmd;
 	int err = cmd->error;
+#ifdef CONFIG_MMC_FREQ_SCALING
 	ktime_t t;
 	unsigned long time;
 	unsigned long flags;
 
-#ifdef CONFIG_MMC_FREQ_SCALING
 	if (host->dev_stats) {
 		t = ktime_get();
 		time = ktime_us_delta(t, host->dev_stats->t_busy);
@@ -2242,7 +2242,7 @@ void mmc_rescan(struct work_struct *work)
 	static const unsigned freqs[] = { 400000, 300000, 200000, 100000 };
 	struct mmc_host *host =
 		container_of(work, struct mmc_host, detect.work);
-	int i, ret = 0;
+	int i;
 	bool extend_wakelock = false;
 
 	if (host->rescan_disable)
@@ -2256,7 +2256,7 @@ void mmc_rescan(struct work_struct *work)
 	 */
 	if (host->bus_ops && host->bus_ops->detect && !host->bus_dead
 	    && !(host->caps & MMC_CAP_NONREMOVABLE))
-		ret = host->bus_ops->detect(host);
+		host->bus_ops->detect(host);
 
 	host->detect_change = 0;
 
@@ -2288,8 +2288,10 @@ void mmc_rescan(struct work_struct *work)
 	if (host->ops->get_cd && host->ops->get_cd(host) == 0)
 		goto out;
 
-	if (!strcmp(mmc_hostname(host), "mmc2") && ret)
+#ifdef CONFIG_MACH_TRANSFORMER
+	if (!strcmp(mmc_hostname(host), "mmc2") && host->detect_sd)
 		goto out;
+#endif
 
 	mmc_claim_host(host);
 	for (i = 0; i < ARRAY_SIZE(freqs); i++) {
@@ -2312,11 +2314,13 @@ void mmc_rescan(struct work_struct *work)
 		mmc_schedule_delayed_work(&host->detect, HZ);
 	}
 
+#ifdef CONFIG_MACH_TRANSFORMER
 	/*
 	 * To avoid sd card detect lost.
 	 */
-	if (!strcmp(mmc_hostname(host), "mmc2") && ret)
+	if (!strcmp(mmc_hostname(host), "mmc2") && host->detect_sd)
 		mmc_schedule_delayed_work(&host->detect, HZ);
+#endif
 }
 
 void mmc_start_host(struct mmc_host *host)
@@ -2850,7 +2854,9 @@ EXPORT_SYMBOL(mmc_cache_ctrl);
 int mmc_suspend_host(struct mmc_host *host)
 {
 	int err = 0;
+#ifdef CONFIG_MMC_FREQ_SCALING
 	ktime_t t;
+#endif
 
 	if (mmc_bus_needs_resume(host))
 		return 0;
