@@ -319,7 +319,7 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 //			pr_err("Check can not pull low TEGRA_GPIO_PU5 \n");
 //			gpio_free(TEGRA_GPIO_PU5);
 //			return ret;
-		}
+//		}
 	} else {
 		pr_info ("[TF700T]: Panel is panasonic! No PU5\n");
 //		ret = gpio_direction_output(TEGRA_GPIO_PU5, 1);
@@ -327,7 +327,7 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 //			pr_err("Check can not pull high TEGRA_GPIO_PU5 \n");
 //			gpio_free(TEGRA_GPIO_PU5);
 //			return ret;
-		}
+//		}
 	}
 
 	cardhu_panel_postpoweron();
