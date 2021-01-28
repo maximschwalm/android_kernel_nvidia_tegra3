@@ -314,20 +314,8 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 	if (gpio_get_value(TEGRA_GPIO_PI6)) {
 		pr_info ("[TF700T]: Panel is hydis! No PU5 \n");
 		gpio_set_value(TEGRA_GPIO_PH3, 0);
-//		ret = gpio_direction_output(TEGRA_GPIO_PU5, 0);
-//		if (ret < 0) {
-//			pr_err("Check can not pull low TEGRA_GPIO_PU5 \n");
-//			gpio_free(TEGRA_GPIO_PU5);
-//			return ret;
-//		}
 	} else {
 		pr_info ("[TF700T]: Panel is panasonic! No PU5\n");
-//		ret = gpio_direction_output(TEGRA_GPIO_PU5, 1);
-//		if (ret < 0) {
-//			pr_err("Check can not pull high TEGRA_GPIO_PU5 \n");
-//			gpio_free(TEGRA_GPIO_PU5);
-//			return ret;
-//		}
 	}
 
 	cardhu_panel_postpoweron();
@@ -373,8 +361,6 @@ static int cardhu_panel_disable_tf700t(void)
 	gpio_set_value(TEGRA_GPIO_PX0, 0);
 	gpio_set_value(TEGRA_GPIO_PC6, 0);
 	gpio_set_value(TEGRA_GPIO_PBB3, 0);
-
-//	gpio_set_value(TEGRA_GPIO_PU5, 0); // what is this?
 
 	cardhu_panel_disable();
 	cardhu_panel_prepoweroff();
@@ -966,7 +952,6 @@ int __init cardhu_panel_init(void)
 
 		cardhu_disp2_out.parent_clk = "pll_d2_out0";
 
-//		gpio_request(TEGRA_GPIO_PU5, "LDO_EN");
 		gpio_request(TEGRA_GPIO_PBB3, "TF700T_1.2V");
 		gpio_request(TEGRA_GPIO_PC6, "TF700T_1.8V");
 		gpio_request(TEGRA_GPIO_PX0, "TF700T_I2C_Switch");
