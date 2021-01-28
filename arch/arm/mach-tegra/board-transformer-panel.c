@@ -239,95 +239,6 @@ static int cardhu_panel_enable(struct device *dev)
 	return 0;
 }
 
-static int cardhu_panel_enable_tf700t(struct device *dev)
-{
-	int ret;
-
-	if (gpio_get_value(TEGRA_GPIO_PI6)){
-		/* Panel is hydis */
-		gpio_set_value(TEGRA_GPIO_PH3, 0);
-		ret = gpio_direction_output(TEGRA_GPIO_PU5, 0);
-		if (ret < 0) {
-			pr_err("Check can not pull low TEGRA_GPIO_PU5 \n");
-			gpio_free(TEGRA_GPIO_PU5);
-			return ret;
-		}
-	} else {
-		/* Panel is panasonic */
-		if (cardhu_lvds_vdd_bl == NULL) {
-			cardhu_lvds_vdd_bl = regulator_get(dev, "vdd_backlight");
-			if (WARN_ON(IS_ERR(cardhu_lvds_vdd_bl)))
-				pr_err("%s: couldn't get regulator vdd_backlight: %ld\n",
-						__func__, PTR_ERR(cardhu_lvds_vdd_bl));
-			else
-				regulator_enable(cardhu_lvds_vdd_bl);
-		}
-
-		ret = gpio_direction_output(TEGRA_GPIO_PU5, 1);
-		if (ret < 0) {
-			pr_err("Check can not pull high TEGRA_GPIO_PU5 \n");
-			gpio_free(TEGRA_GPIO_PU5);
-			return ret;
-		}
-	}
-	mdelay(5);
-
-	if (cardhu_lvds_reg == NULL) {
-		cardhu_lvds_reg = regulator_get(dev, "vdd_lvds");
-		if (WARN_ON(IS_ERR(cardhu_lvds_reg)))
-			pr_err("%s: couldn't get regulator vdd_lvds: %ld\n",
-					__func__, PTR_ERR(cardhu_lvds_reg));
-		else
-			regulator_enable(cardhu_lvds_reg);
-	}
-
-	if (cardhu_lvds_vdd_panel == NULL) {
-		cardhu_lvds_vdd_panel = regulator_get(dev, "vdd_lcd_panel");
-		if (WARN_ON(IS_ERR(cardhu_lvds_vdd_panel)))
-			pr_err("%s: couldn't get regulator vdd_lcd_panel: %ld\n",
-					__func__, PTR_ERR(cardhu_lvds_vdd_panel));
-		else
-			regulator_enable(cardhu_lvds_vdd_panel);
-	}
-	msleep(20);
-
-	/* Check power on/off for bridge IC */
-	ret = gpio_direction_output(TEGRA_GPIO_PBB3, 1);
-	if (ret < 0) {
-		pr_err("Check can not pull high TEGRA_GPIO_PBB3 \n");
-		gpio_free(TEGRA_GPIO_PBB3);
-		return ret;
-	}
-
-	ret = gpio_direction_output(TEGRA_GPIO_PC6, 1);
-	if (ret < 0) {
-		pr_err("Check can not pull high TF700T_1.8V(TEGRA_GPIO_PC6\n");
-		gpio_free(TEGRA_GPIO_PC6);
-		return ret;
-	}
-
-	mdelay(10);
-
-	ret = gpio_direction_output(TEGRA_GPIO_PX0, 1);
-	if (ret < 0) {
-		pr_err("Check can not pull high TF700T_I2C_Switch(TEGRA_GPIO_PX0)\n");
-		gpio_free(TEGRA_GPIO_PX0);
-		return ret;
-	}
-	mdelay(10);
-
-	gpio_set_value(TEGRA_GPIO_PN6, 1);
-
-	ret = gpio_direction_output(TEGRA_GPIO_PD2, 1);
-	if (ret < 0) {
-		pr_err("Check can not pull high TF700T_OSC(TEGRA_GPIO_PD2)\n");
-		gpio_free(TEGRA_GPIO_PD2);
-		return ret;
-	}
-	msleep(10);
-
-	return 0;
-}
 
 static int cardhu_panel_disable(void)
 {
@@ -346,43 +257,8 @@ static int cardhu_panel_disable(void)
 	return 0;
 }
 
-static int cardhu_panel_disable_tf700t(void)
-{
-	gpio_set_value(TEGRA_GPIO_PD2, 0);
-	gpio_set_value(TEGRA_GPIO_PN6, 0);
-	gpio_set_value(TEGRA_GPIO_PX0, 0);
-	gpio_set_value(TEGRA_GPIO_PC6, 0);
-	gpio_set_value(TEGRA_GPIO_PBB3, 0);
-
-	if (gpio_get_value(TEGRA_GPIO_PI6)) {
-		/* Panel is hydis */
-		msleep(10);
-	} else {
-		/* Panel is panasonic */
-		msleep(85);
-	}
-
-	if (cardhu_lvds_vdd_panel) {
-		regulator_disable(cardhu_lvds_vdd_panel);
-		regulator_put(cardhu_lvds_vdd_panel);
-		cardhu_lvds_vdd_panel = NULL;
-	}
-
-	gpio_set_value(TEGRA_GPIO_PU5, 0);
-
-	if (cardhu_lvds_vdd_bl) {
-		regulator_disable(cardhu_lvds_vdd_bl);
-		regulator_put(cardhu_lvds_vdd_bl);
-		cardhu_lvds_vdd_bl = NULL;
-	}
-
-	return 0;
-}
-
 static int cardhu_panel_postpoweron(void)
 {
-	/* TF700T not get involved */
-
 	if (cardhu_lvds_reg == NULL) {
 		cardhu_lvds_reg = regulator_get(NULL, "vdd_lvds");
 		if (WARN_ON(IS_ERR(cardhu_lvds_reg)))
@@ -410,8 +286,6 @@ static int cardhu_panel_postpoweron(void)
 
 static int cardhu_panel_prepoweroff(void)
 {
-	/* TF700T not get involved */
-
 	/*
 	 * For TF300T EN_VDD_BL (TEGRA_GPIO_PH3) is always on, no need
 	 * to control cardhu_lvds_vdd_bl but for TF300TG/TL, EN_VDD_BL
@@ -429,6 +303,81 @@ static int cardhu_panel_prepoweroff(void)
 
 	gpio_set_value(TEGRA_GPIO_PN6, 0);
 	msleep(10);
+
+	return 0;
+}
+
+static int cardhu_panel_enable_tf700t(struct device *dev)
+{
+	int ret;
+
+	if (gpio_get_value(TEGRA_GPIO_PI6)) {
+		pr_info ("[TF700T]: Panel is hydis! \n");
+		gpio_set_value(TEGRA_GPIO_PH3, 0);
+		ret = gpio_direction_output(TEGRA_GPIO_PU5, 0);
+		if (ret < 0) {
+			pr_err("Check can not pull low TEGRA_GPIO_PU5 \n");
+			gpio_free(TEGRA_GPIO_PU5);
+			return ret;
+		}
+	} else {
+		pr_info ("[TF700T]: Panel is panasonic! \n");
+		ret = gpio_direction_output(TEGRA_GPIO_PU5, 1);
+		if (ret < 0) {
+			pr_err("Check can not pull high TEGRA_GPIO_PU5 \n");
+			gpio_free(TEGRA_GPIO_PU5);
+			return ret;
+		}
+	}
+
+	cardhu_panel_postpoweron();
+	cardhu_panel_enable(dev);
+
+	/* Check power on/off for bridge IC */
+	ret = gpio_direction_output(TEGRA_GPIO_PBB3, 1);
+	if (ret < 0) {
+		pr_err("Check can not pull high TEGRA_GPIO_PBB3 \n");
+		gpio_free(TEGRA_GPIO_PBB3);
+		return ret;
+	}
+
+	ret = gpio_direction_output(TEGRA_GPIO_PC6, 1);
+	if (ret < 0) {
+		pr_err("Check can not pull high TF700T_1.8V(TEGRA_GPIO_PC6\n");
+		gpio_free(TEGRA_GPIO_PC6);
+		return ret;
+	}
+
+	ret = gpio_direction_output(TEGRA_GPIO_PX0, 1);
+	if (ret < 0) {
+		pr_err("Check can not pull high TF700T_I2C_Switch(TEGRA_GPIO_PX0)\n");
+		gpio_free(TEGRA_GPIO_PX0);
+		return ret;
+	}
+
+	/* This one is defferent ! */
+	ret = gpio_direction_output(TEGRA_GPIO_PD2, 1);
+	if (ret < 0) {
+		pr_err("Check can not pull high TF700T_OSC(TEGRA_GPIO_PD2)\n");
+		gpio_free(TEGRA_GPIO_PD2);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int cardhu_panel_disable_tf700t(void)
+{
+	gpio_set_value(TEGRA_GPIO_PD2, 0); // <- disabled first then lvds gpio, then bridge gpios
+
+	gpio_set_value(TEGRA_GPIO_PX0, 0);
+	gpio_set_value(TEGRA_GPIO_PC6, 0);
+	gpio_set_value(TEGRA_GPIO_PBB3, 0);
+
+	gpio_set_value(TEGRA_GPIO_PU5, 0); // what is this?
+
+	cardhu_panel_disable();
+	cardhu_panel_prepoweroff();
 
 	return 0;
 }
