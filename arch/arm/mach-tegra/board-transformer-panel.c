@@ -312,7 +312,7 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 	int ret;
 
 	if (gpio_get_value(TEGRA_GPIO_PI6)) {
-		pr_info ("[TF700T]: Panel is hydis! \n");
+		pr_info ("[TF700T]: Panel is hydis! No PU5 \n");
 		gpio_set_value(TEGRA_GPIO_PH3, 0);
 //		ret = gpio_direction_output(TEGRA_GPIO_PU5, 0);
 //		if (ret < 0) {
@@ -321,7 +321,7 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 //			return ret;
 		}
 	} else {
-		pr_info ("[TF700T]: Panel is panasonic! \n");
+		pr_info ("[TF700T]: Panel is panasonic! No PU5\n");
 //		ret = gpio_direction_output(TEGRA_GPIO_PU5, 1);
 //		if (ret < 0) {
 //			pr_err("Check can not pull high TEGRA_GPIO_PU5 \n");
