@@ -457,7 +457,7 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 		return ret;
 	}
 
-	cardhu_mipi_bridge_init();
+//	cardhu_mipi_bridge_init();
 
 	/* This one is different ! */
 	ret = gpio_direction_output(TEGRA_GPIO_PD2, 1);
