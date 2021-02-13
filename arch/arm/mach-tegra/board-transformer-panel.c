@@ -57,10 +57,6 @@ static struct regulator *cardhu_lvds_reg = NULL;
 static struct regulator *cardhu_lvds_vdd_bl = NULL;
 static struct regulator *cardhu_lvds_vdd_panel = NULL;
 
-static struct i2c_client *client_panel;
-static int client_count = 0;
-int I2C_command_flag = 1;
-
 struct display_reg {
 	u16 addr;
 	u16 val;
@@ -215,9 +211,15 @@ static void cardhu_mipi_bridge_init(void)
 {
 	int bus = 0;
 	unsigned char data[4] = {0, 0, 0, 0};
+
 	struct i2c_msg msg[2];
-	struct i2c_board_info	*info;
-	struct i2c_adapter		*adapter;
+	struct i2c_board_info *info;
+	struct i2c_adapter *adapter;
+	struct i2c_client *client_panel;
+
+	int client_count = 0;
+	int I2C_command_flag = 0;
+
 	struct display_reg display_table[71] =
 	{
 		{0x0002, 0x0001}, //SYSctl, S/W Reset
@@ -457,7 +459,7 @@ static int cardhu_panel_enable_tf700t(struct device *dev)
 		return ret;
 	}
 
-//	cardhu_mipi_bridge_init();
+	cardhu_mipi_bridge_init();
 
 	/* This one is different ! */
 	ret = gpio_direction_output(TEGRA_GPIO_PD2, 1);
