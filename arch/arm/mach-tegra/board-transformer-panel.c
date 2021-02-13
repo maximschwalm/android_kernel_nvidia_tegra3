@@ -218,7 +218,7 @@ static void cardhu_mipi_bridge_init(void)
 	struct i2c_client *client_panel;
 
 	int client_count = 0;
-	int I2C_command_flag = 0;
+	// int I2C_command_flag = 0;
 
 	struct display_reg display_table[71] =
 	{
@@ -311,33 +311,33 @@ static void cardhu_mipi_bridge_init(void)
 		kfree(info);
 	}
 
-	if (I2C_command_flag == 0) {
-		I2C_command_flag = 1;
-		msg[0].addr = 0x07;
-		msg[0].flags = 0;
-		msg[0].len = 2;
-		msg[0].buf = data;
+//	if (I2C_command_flag == 0) {
+//		I2C_command_flag = 1;
+//		msg[0].addr = 0x07;
+//		msg[0].flags = 0;
+//		msg[0].len = 2;
+//		msg[0].buf = data;
 
-		/* high byte goes out first */
-		data[0] = 0;
-		data[1] = 0;
+//		/* high byte goes out first */
+//		data[0] = 0;
+//		data[1] = 0;
 
-		msg[1].addr = 0x07;
-		msg[1].flags = 1;
-		msg[1].len = 2;
-		msg[1].buf = data + 2;
+//		msg[1].addr = 0x07;
+//		msg[1].flags = 1;
+//		msg[1].len = 2;
+//		msg[1].buf = data + 2;
 
-		i2c_transfer(client_panel->adapter, msg, 2);
-		display_write_table(client_panel, display_table);
+//		i2c_transfer(client_panel->adapter, msg, 2);
+//		display_write_table(client_panel, display_table);
 
-		if (gpio_get_value(TEGRA_GPIO_PI6)){
-			pr_info("%s: Panel is hydis", __func__);
-			mdelay(70);
-		} else {
-			pr_info("%s: Panel is panasonic", __func__);
-			mdelay(35);
-		}
-	}
+//		if (gpio_get_value(TEGRA_GPIO_PI6)){
+//			pr_info("%s: Panel is hydis", __func__);
+//			mdelay(70);
+//		} else {
+//			pr_info("%s: Panel is panasonic", __func__);
+//			mdelay(35);
+//		}
+//	}
 }
 
 static int cardhu_panel_enable(struct device *dev)
