@@ -35,12 +35,6 @@
 #include "devices.h"
 #include "tegra3_host1x_devices.h"
 
-#define DC_CTRL_MODE	(TEGRA_DC_OUT_ONE_SHOT_MODE | \
-			 TEGRA_DC_OUT_ONE_SHOT_LP_MODE)
-
-/* E1506 display board pins */
-#define e1506_lcd_te			TEGRA_GPIO_PJ1
-
 /* common pins( backlight ) for all display boards */
 #define cardhu_bl_enb			TEGRA_GPIO_PH2
 #define cardhu_hdmi_hpd			TEGRA_GPIO_PN7
@@ -66,8 +60,6 @@ static struct regulator *cardhu_lvds_vdd_panel = NULL;
 static struct i2c_client *client_panel;
 static int client_count = 0;
 int I2C_command_flag = 1;
-
-extern bool isRecording;
 
 struct display_reg {
 	u16 addr;
@@ -127,11 +119,6 @@ static int cardhu_backlight_notify(struct device *unused, int brightness)
 
 	/* Set the backlight GPIO pin mode to 'backlight_enable' */
 	gpio_set_value(cardhu_bl_enb, !!brightness);
-
-	if (tegra3_get_project_id() == TEGRA3_PROJECT_TF201
-			&& isRecording) {
-		gpio_set_value(cardhu_bl_enb, 1);
-	}
 
 	/* SD brightness is a percentage, 8-bit value. */
 	brightness = DIV_ROUND_CLOSEST((brightness * cur_sd_brightness), 255);
@@ -775,7 +762,7 @@ static struct platform_device *cardhu_gfx_devices[] __initdata = {
 	&cardhu_backlight_device,
 };
 
-void cardhu_mipi_bridge_init(void)
+static void cardhu_mipi_bridge_init(void)
 {
 	int bus = 0;
 	unsigned char data[4] = {0, 0, 0, 0};
@@ -956,27 +943,19 @@ int __init cardhu_panel_init(void)
 		gpio_request(TEGRA_GPIO_PC6, "TF700T_1.8V");
 		gpio_request(TEGRA_GPIO_PX0, "TF700T_I2C_Switch");
 		gpio_request(TEGRA_GPIO_PD2, "TF700T_OSC");
-
-		gpio_request(cardhu_hdmi_enb, "hdmi_5v_en");
-		gpio_direction_output(cardhu_hdmi_enb, 0);
 	} else {
 		cardhu_disp1_out.enable = cardhu_panel_enable;
 		cardhu_disp1_out.postpoweron = cardhu_panel_postpoweron;
 		cardhu_disp1_out.prepoweroff = cardhu_panel_prepoweroff;
 		cardhu_disp1_out.disable = cardhu_panel_disable;
-
-		gpio_request(cardhu_hdmi_enb, "hdmi_5v_en");
-		gpio_direction_output(cardhu_hdmi_enb, 1);
 	}
 #endif
 
+	gpio_request(cardhu_hdmi_enb, "hdmi_5v_en");
+	gpio_direction_output(cardhu_hdmi_enb, 1);
+
 	gpio_request(cardhu_hdmi_hpd, "hdmi_hpd");
 	gpio_direction_input(cardhu_hdmi_hpd);
-
-#if !(DC_CTRL_MODE & TEGRA_DC_OUT_ONE_SHOT_MODE)
-	gpio_request(e1506_lcd_te, "lcd_te");
-	gpio_direction_input(e1506_lcd_te);
-#endif
 
 	err = platform_add_devices(cardhu_gfx_devices,
 				ARRAY_SIZE(cardhu_gfx_devices));
