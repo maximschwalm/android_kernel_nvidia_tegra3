@@ -36,6 +36,11 @@
 #include <linux/extcon.h>
 #include <linux/gpio.h>
 
+#ifdef CONFIG_MACH_TRANSFORMER
+#include <linux/asusec.h>
+static unsigned int usb_vbus_val = 0x0;
+#endif
+
 #define USB_PHY_WAKEUP		0x408
 #define  USB_ID_INT_EN		(1 << 0)
 #define  USB_ID_INT_STATUS	(1 << 1)
@@ -325,6 +330,16 @@ static void tegra_change_otg_state(struct tegra_otg_data *tegra,
 			usb_gadget_vbus_disconnect(otg->gadget);
 			tegra_otg_notify_event(tegra, USB_EVENT_NONE);
 		}
+#ifdef CONFIG_MACH_TRANSFORMER
+		/*
+		 *  USB_VBUS_STATUS	(1 << 10)
+		 *  usb_vbus_val = 0, VBUS disable.
+		 *  usb_vbus_val = 1024, VBUS enable.
+		 */
+	} else if (from == OTG_STATE_A_SUSPEND && to == OTG_STATE_A_SUSPEND && usb_vbus_val == 1024) {
+		usb_vbus_val = otg_readl(tegra, USB_PHY_WAKEUP) & USB_VBUS_STATUS;
+		cable_status_reset();
+#endif
 	}
 }
 
@@ -403,7 +418,7 @@ static int tegra_otg_set_peripheral(struct usb_otg *otg,
 	tegra = (struct tegra_otg_data *)container_of(otg->phy, struct tegra_otg_data, phy);
 	otg->gadget = gadget;
 
-#if defined(CONFIG_MACH_GROUPER) || defined(CONFIG_MACH_CL2N)
+#if defined(CONFIG_MACH_GROUPER) || defined(CONFIG_MACH_CL2N) || defined(CONFIG_MACH_TRANSFORMER)
 	msleep(10);
 #endif
 
@@ -740,11 +755,19 @@ static int tegra_otg_suspend(struct device *dev)
 	clk_disable_unprepare(tegra->clk);
 	pm_runtime_put_sync(dev);
 
+#ifdef CONFIG_MACH_TRANSFORMER
+	usb_suspend_tag = true;
+#endif
+
 	/* suspend peripheral mode, host mode is taken care by host driver */
 	if (from == OTG_STATE_B_PERIPHERAL)
 		tegra_change_otg_state(tegra, OTG_STATE_A_SUSPEND);
 
 	tegra->suspended = true;
+
+#ifdef CONFIG_MACH_TRANSFORMER
+	usb_vbus_val = otg_readl(tegra, USB_PHY_WAKEUP) & USB_VBUS_STATUS;
+#endif
 
 	DBG("%s(%d) END\n", __func__, __LINE__);
 	mutex_unlock(&tegra->irq_work_mutex);
@@ -785,6 +808,9 @@ static void tegra_otg_resume(struct device *dev)
 		if (!tegra->support_pmu_vbus)
 			val |= USB_VBUS_INT_EN | USB_VBUS_WAKEUP_EN;
 		tegra->int_status = val;
+#ifdef CONFIG_MACH_TRANSFORMER
+		usb_suspend_tag = false;
+#endif
 		spin_unlock_irqrestore(&tegra->lock, flags);
 	}
 

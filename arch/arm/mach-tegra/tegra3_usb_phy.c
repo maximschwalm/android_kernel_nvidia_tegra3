@@ -35,6 +35,10 @@
 #include "fuse.h"
 #include "clock.h"
 
+#ifdef CONFIG_MACH_TRANSFORMER
+#include <linux/asusec.h>
+#endif
+
 #define USB_USBCMD		0x130
 #define   USB_USBCMD_RS		(1 << 0)
 #define   USB_CMD_RESET	(1<<1)
@@ -1128,6 +1132,10 @@ static int utmi_phy_open(struct tegra_usb_phy *phy)
 	}
 
 	phy->utmi_xcvr_setup = utmi_phy_xcvr_setup_value(phy);
+
+#ifdef CONFIG_MACH_TRANSFORMER
+	utmi_xcvr_setup_corrector(phy);
+#endif
 
 	parent_rate = clk_get_rate(clk_get_parent(phy->pllu_clk));
 	for (i = 0; i < ARRAY_SIZE(utmip_freq_table); i++) {
@@ -2284,7 +2292,7 @@ static void uhsic_phy_restore_end(struct tegra_usb_phy *phy)
 	}
 }
 
-#ifndef CONFIG_MACH_GROUPER
+#if !defined(CONFIG_MACH_GROUPER) || !defined(CONFIG_MACH_TRANSFORMER)
 static int hsic_rail_enable(struct tegra_usb_phy *phy)
 {
 	int ret;
@@ -2331,7 +2339,7 @@ static int uhsic_phy_open(struct tegra_usb_phy *phy)
 {
 	unsigned long parent_rate;
 	int i;
-#ifndef CONFIG_MACH_GROUPER
+#if !defined(CONFIG_MACH_GROUPER) || !defined(CONFIG_MACH_TRANSFORMER)
 	int ret;
 
 	phy->hsic_reg = NULL;
@@ -2362,14 +2370,14 @@ static int uhsic_phy_open(struct tegra_usb_phy *phy)
 
 static void uhsic_phy_close(struct tegra_usb_phy *phy)
 {
-#ifndef CONFIG_MACH_GROUPER
+#if !defined(CONFIG_MACH_GROUPER) || !defined(CONFIG_MACH_TRANSFORMER)
 	int ret;
 #endif
 
 	DBG("%s(%d) inst:[%d]\n", __func__, __LINE__, phy->inst);
 	uhsic_powerdown_pmc_wake_detect(phy);
 
-#ifndef CONFIG_MACH_GROUPER
+#if !defined(CONFIG_MACH_GROUPER) || !defined(CONFIG_MACH_TRANSFORMER)
 	ret = hsic_rail_disable(phy);
 	if (ret < 0)
 		pr_err("%s avdd_hsic could not be disabled\n", __func__);

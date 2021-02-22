@@ -24,6 +24,9 @@
 #include <linux/of.h>
 #include <linux/delay.h>
 #include <linux/of_gpio.h>
+#ifdef CONFIG_MACH_TRANSFORMER
+#include <linux/asusec.h>
+#endif
 
 #include <mach/usb_phy.h>
 #include <mach/iomap.h>
@@ -587,6 +590,10 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 		goto fail_irq;
 	}
 
+#ifdef CONFIG_MACH_TRANSFORMER
+	transformer_usb_definer(hcd, tegra->phy);
+#endif
+
 	err = tegra_usb_phy_power_on(tegra->phy);
 	if (err) {
 		dev_err(&pdev->dev, "failed to power on the phy\n");
@@ -713,6 +720,10 @@ static int tegra_ehci_remove(struct platform_device *pdev)
 	}
 #endif
 
+#ifdef CONFIG_MACH_TRANSFORMER
+	transformer_usb_definer(hcd, tegra->phy);
+#endif
+
 	if (tegra->irq)
 		disable_irq_wake(tegra->irq);
 
@@ -746,6 +757,10 @@ static void tegra_ehci_hcd_shutdown(struct platform_device *pdev)
 {
 	struct tegra_ehci_hcd *tegra = platform_get_drvdata(pdev);
 	struct usb_hcd *hcd = ehci_to_hcd(tegra->ehci);
+
+#ifdef CONFIG_MACH_TRANSFORMER
+	transformer_usb_definer(hcd, tegra->phy);
+#endif
 
 	if (hcd->driver->shutdown)
 		hcd->driver->shutdown(hcd);

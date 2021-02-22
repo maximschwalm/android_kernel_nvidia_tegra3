@@ -53,6 +53,9 @@
 
 #include "tegra_udc.h"
 
+#ifdef CONFIG_MACH_TRANSFORMER
+#include <linux/asusec.h>
+#endif
 
 #define	DRIVER_DESC	"Nvidia Tegra High-Speed USB SOC \
 					Device Controller driver"
@@ -72,7 +75,6 @@
 #define ep_is_in(EP)	((ep_index(EP) == 0) ? (EP->udc->ep0_dir == \
 				USB_DIR_IN) : ((EP)->desc->bEndpointAddress \
 				& USB_DIR_IN) == USB_DIR_IN)
-
 
 static const char driver_name[] = "tegra-udc";
 static const char driver_desc[] = DRIVER_DESC;
@@ -1407,7 +1409,7 @@ static int tegra_usb_set_charging_current(struct tegra_udc *udc)
 	return ret;
 }
 
-static void tegra_detect_charging_type_is_cdp_or_dcp(struct tegra_udc *udc)
+void tegra_detect_charging_type_is_cdp_or_dcp(struct tegra_udc *udc)
 {
 	u32 portsc;
 	u32 temp;
@@ -1494,10 +1496,16 @@ static int tegra_vbus_session(struct usb_gadget *gadget, int is_active)
 		dr_controller_reset(udc);
 		udc->vbus_active = 0;
 		udc->usb_state = USB_STATE_DEFAULT;
+#ifdef CONFIG_MACH_TRANSFORMER
+		if(usb_suspend_tag != 1)
+#endif
 		tegra_udc_set_charger_type(udc, CONNECT_TYPE_NONE);
 		spin_unlock_irqrestore(&udc->lock, flags);
 		tegra_usb_phy_power_off(udc->phy);
 		tegra_usb_set_charging_current(udc);
+#ifdef CONFIG_MACH_TRANSFORMER
+		transformer_cable_detect(udc);
+#endif
 	} else if (!udc->vbus_active && is_active) {
 		tegra_usb_phy_power_on(udc->phy);
 		/* setup the controller in the device mode */
@@ -1514,8 +1522,15 @@ static int tegra_vbus_session(struct usb_gadget *gadget, int is_active)
 		if ((udc->connect_type == CONNECT_TYPE_SDP) ||
 		    (udc->connect_type == CONNECT_TYPE_CDP))
 			dr_controller_run(udc);
+#ifdef CONFIG_MACH_TRANSFORMER
+		transformer_cable_detect(udc);
+#endif
 	}
 	mutex_unlock(&udc->sync_lock);
+
+#ifdef CONFIG_MACH_TRANSFORMER
+	cable_status_setup(udc);
+#endif
 
 	return 0;
 }
@@ -2853,6 +2868,9 @@ static int __init tegra_udc_probe(struct platform_device *pdev)
 	udc->has_hostpc = pdata->has_hostpc;
 	udc->support_pmu_vbus = pdata->support_pmu_vbus;
 	platform_set_drvdata(pdev, udc);
+#ifdef CONFIG_MACH_TRANSFORMER
+	transformer_link_udc(the_udc);
+#endif
 
 	/* Initialize the udc structure including QH members */
 	err = tegra_udc_setup_qh(udc);
@@ -3104,11 +3122,18 @@ static struct platform_driver tegra_udc_driver = {
 static int __init udc_init(void)
 {
 	printk(KERN_INFO "%s (%s)\n", driver_desc, DRIVER_VERSION);
+#ifdef CONFIG_MACH_TRANSFORMER
+	transformer_udc_init();
+#endif
 	return platform_driver_probe(&tegra_udc_driver, tegra_udc_probe);
 }
 module_init(udc_init);
+
 static void __exit udc_exit(void)
 {
+#ifdef CONFIG_MACH_TRANSFORMER
+	transformer_udc_exit();
+#endif
 	platform_driver_unregister(&tegra_udc_driver);
 	printk(KERN_WARNING "%s unregistered\n", driver_desc);
 }
