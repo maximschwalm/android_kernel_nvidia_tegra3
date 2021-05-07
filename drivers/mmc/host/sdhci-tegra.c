@@ -14,6 +14,8 @@
  *
  */
 
+#define DEBUG
+
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/init.h>
@@ -1276,17 +1278,26 @@ static int tegra_sdhci_signal_voltage_switch(struct sdhci_host *sdhci,
 
 	ctrl = sdhci_readw(sdhci, SDHCI_HOST_CONTROL2);
 	if (signal_voltage == MMC_SIGNAL_VOLTAGE_180) {
+		dev_info(mmc_dev(sdhci->mmc), "signal_voltage is 1.8V\n");
 		ctrl |= SDHCI_CTRL_VDD_180;
 		min_uV = SDHOST_LOW_VOLT_MIN;
+		dev_info(mmc_dev(sdhci->mmc), "Setting min_uV to %u\n",
+			min_uV);
 		max_uV = SDHOST_LOW_VOLT_MAX;
+		dev_info(mmc_dev(sdhci->mmc), "Setting max_uV to %u\n",
+			max_uV);
 	} else if (signal_voltage == MMC_SIGNAL_VOLTAGE_330) {
+		dev_info(mmc_dev(sdhci->mmc), "signal_voltage is 3.3V\n");
 		if (ctrl & SDHCI_CTRL_VDD_180)
 			ctrl &= ~SDHCI_CTRL_VDD_180;
 	}
 
 	/* Check if the slot can support the required voltage */
-	if (min_uV > tegra_host->vddio_max_uv)
+	if (min_uV > tegra_host->vddio_max_uv) {
+		dev_info(mmc_dev(sdhci->mmc), "min_uV too high. Voltage not supported."
+		" vddio_max_uv is %u\n", tegra_host->vddio_max_uv);
 		return 0;
+	}
 
 	/* Switch OFF the card clock to prevent glitches on the clock line */
 	clk = sdhci_readw(sdhci, SDHCI_CLOCK_CONTROL);
@@ -1302,7 +1313,7 @@ static int tegra_sdhci_signal_voltage_switch(struct sdhci_host *sdhci,
 			min_uV, max_uV);
 		if (rc) {
 			dev_err(mmc_dev(sdhci->mmc), "switching to 1.8V"
-			"failed . Switching back to 3.3V\n");
+			"failed. Switching back to 3.3V\n");
 			rc = regulator_set_voltage(tegra_host->vdd_io_reg,
 				SDHOST_HIGH_VOLT_MIN,
 				SDHOST_HIGH_VOLT_MAX);
@@ -1935,6 +1946,8 @@ static int sdhci_tegra_execute_tuning(struct sdhci_host *sdhci, u32 opcode)
 			voltage = tuning_params[freq_band].voltages[i];
 			if (voltage > tegra_host->nominal_vcore_mv) {
 				voltage = tegra_host->nominal_vcore_mv;
+				dev_info(mmc_dev(sdhci->mmc),
+				"Setting nominal vcore voltage to %d\n", voltage);
 				if (tuning_data->nominal_vcore_tun_done) {
 					spin_lock(&sdhci->lock);
 					continue;
@@ -1942,6 +1955,8 @@ static int sdhci_tegra_execute_tuning(struct sdhci_host *sdhci, u32 opcode)
 			}
 			if (voltage < tegra_host->min_vcore_override_mv) {
 				voltage = tegra_host->min_vcore_override_mv;
+				dev_info(mmc_dev(sdhci->mmc),
+				"Setting min vcore override voltage to %d\n", voltage);
 				/*
 				 * If nominal and min override voltages are
 				 * equal, set one shot tuning and mark min
@@ -1968,6 +1983,9 @@ static int sdhci_tegra_execute_tuning(struct sdhci_host *sdhci, u32 opcode)
 					voltage, err);
 				} else {
 					vcore_lvl = voltage;
+					dev_info(mmc_dev(sdhci->mmc),
+					"Setting vcore voltage to %d\n",
+					voltage);
 				}
 			}
 			spin_lock(&sdhci->lock);
@@ -2078,6 +2096,9 @@ out:
 					err);
 		else
 			vcore_lvl = tegra_host->nominal_vcore_mv;
+			dev_info(mmc_dev(sdhci->mmc),
+				"Setting nominal core voltage to %u\n",
+					vcore_lvl);
 		spin_lock(&sdhci->lock);
 
 		/* Schedule for the retuning */
@@ -2160,12 +2181,17 @@ static int tegra_sdhci_resume(struct sdhci_host *sdhci)
 			if (tegra_host->vdd_io_reg) {
 				regulator_enable(tegra_host->vdd_io_reg);
 				if (plat->mmc_data.ocr_mask &
-							SDHOST_1V8_OCR_MASK)
+							SDHOST_1V8_OCR_MASK) {
 					tegra_sdhci_signal_voltage_switch(sdhci,
 							MMC_SIGNAL_VOLTAGE_180);
-				else
+					pr_debug("%s: Switching signal voltage to"
+						" 1.8V\n", mmc_hostname(sdhci->mmc));
+				} else {
 					tegra_sdhci_signal_voltage_switch(sdhci,
 							MMC_SIGNAL_VOLTAGE_330);
+					pr_debug("%s: Switching signal voltage to"
+						" 3.3V\n", mmc_hostname(sdhci->mmc));
+				}
 			}
 			tegra_host->is_rail_enabled = 1;
 		}
@@ -2605,17 +2631,29 @@ static int __devinit sdhci_tegra_probe(struct platform_device *pdev)
 
 	if (plat->mmc_data.ocr_mask & SDHOST_1V8_OCR_MASK) {
 		tegra_host->vddio_min_uv = SDHOST_LOW_VOLT_MIN;
+		dev_info(mmc_dev(host->mmc), "Setting vddio_min_uv to %d\n",
+			tegra_host->vddio_min_uv);
 		tegra_host->vddio_max_uv = SDHOST_LOW_VOLT_MAX;
+		dev_info(mmc_dev(host->mmc), "Setting vddio_max_uv to %d\n",
+			tegra_host->vddio_max_uv);
 	} else if (plat->mmc_data.ocr_mask & MMC_OCR_2V8_MASK) {
-			tegra_host->vddio_min_uv = SDHOST_HIGH_VOLT_2V8;
-			tegra_host->vddio_max_uv = SDHOST_HIGH_VOLT_MAX;
+		tegra_host->vddio_min_uv = SDHOST_HIGH_VOLT_2V8;
+		dev_info(mmc_dev(host->mmc), "Setting vddio_min_uv to %d\n",
+			tegra_host->vddio_min_uv);
+		tegra_host->vddio_max_uv = SDHOST_HIGH_VOLT_MAX;
+		dev_info(mmc_dev(host->mmc), "Setting vddio_max_uv to %d\n",
+			tegra_host->vddio_max_uv);
 	} else {
 		/*
 		 * Set the minV and maxV to default
 		 * voltage range of 2.7V - 3.6V
 		 */
 		tegra_host->vddio_min_uv = SDHOST_HIGH_VOLT_MIN;
+		dev_info(mmc_dev(host->mmc), "Setting vddio_min_uv to %d\n",
+			tegra_host->vddio_min_uv);
 		tegra_host->vddio_max_uv = SDHOST_HIGH_VOLT_MAX;
+		dev_info(mmc_dev(host->mmc), "Setting vddio_max_uv to %d\n",
+			tegra_host->vddio_min_uv);
 	}
 
 	tegra_host->vdd_io_reg = regulator_get(mmc_dev(host->mmc),
@@ -2734,10 +2772,16 @@ static int __devinit sdhci_tegra_probe(struct platform_device *pdev)
 		host->mmc->caps2 |= MMC_CAP2_FREQ_SCALING;
 #endif
 
-	if (plat->nominal_vcore_mv)
+	if (plat->nominal_vcore_mv) {
 		tegra_host->nominal_vcore_mv = plat->nominal_vcore_mv;
-	if (plat->min_vcore_override_mv)
+		dev_info(mmc_dev(host->mmc), "Setting nominal_vcore_mv to %d\n",
+			tegra_host->nominal_vcore_mv);
+	}
+	if (plat->min_vcore_override_mv) {
 		tegra_host->min_vcore_override_mv = plat->min_vcore_override_mv;
+		dev_info(mmc_dev(host->mmc), "Setting min_vcore_override_mv to %d\n",
+			tegra_host->min_vcore_override_mv);
+	}
 
 	host->edp_support = plat->edp_support ? true : false;
 	if (host->edp_support)
